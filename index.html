@@ -272,6 +272,7 @@ input,textarea{font-family:inherit;}
 
 /* Thanh cuộn ngang của bảng lịch sử: đưa lên phía trên để dễ kéo ngay khi mở */
 .history-table-wrap{width:100%;}
+.xscroll-wrap{display:block;}
 .top-hscroll{
   overflow-x:auto;overflow-y:hidden;height:16px;margin:0 0 6px;
   scrollbar-width:auto;scrollbar-color:var(--line-strong) transparent;
@@ -280,8 +281,8 @@ input,textarea{font-family:inherit;}
 .top-hscroll::-webkit-scrollbar{height:9px;}
 .top-hscroll::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:5px;}
 .top-hscroll::-webkit-scrollbar-track{background:transparent;}
-.history-table-scroll{scrollbar-width:none;}
-.history-table-scroll::-webkit-scrollbar{height:0;}
+.synced-scroll-body{scrollbar-width:none;}
+.synced-scroll-body::-webkit-scrollbar{height:0;}
 
 .raw-table{border-collapse:separate;border-spacing:0;width:100%;min-width:1100px;font-size:13px;}
 .raw-table th{
@@ -824,33 +825,36 @@ function buildPlayCard(r,playNo){
       <span class="pc-badge">Lần chơi #${playNo}</span>
     </div>
     <div class="section-cap">Dữ liệu tham gia STOP-4P</div>
-    <div class="history-table-wrap">
+    <div class="xscroll-wrap history-table-wrap">
       <div class="top-hscroll" aria-label="Thanh cuộn ngang phía trên"><div class="top-hscroll-inner"></div></div>
-      <div class="table-scroll history-table-scroll" style="box-shadow:none;border-radius:12px;">
+      <div class="table-scroll history-table-scroll synced-scroll-body" style="box-shadow:none;border-radius:12px;">
         <table class="jtbl"><thead><tr>${jHead}</tr></thead><tbody><tr>${jBody}</tr></tbody></table>
       </div>
     </div>
     <div class="section-cap" style="margin-top:16px;">Đánh giá mức độ hữu ích</div>
-    <div class="history-table-wrap">
+    <div class="xscroll-wrap history-table-wrap">
       <div class="top-hscroll" aria-label="Thanh cuộn ngang phía trên"><div class="top-hscroll-inner"></div></div>
-      <div class="table-scroll history-table-scroll" style="box-shadow:none;border-radius:12px;">
+      <div class="table-scroll history-table-scroll synced-scroll-body" style="box-shadow:none;border-radius:12px;">
         <table class="utbl"><thead><tr>${uHead}</tr></thead><tbody><tr>${uBody}</tr></tbody></table>
       </div>
     </div>
   </div>`;
 }
 
-function initHistoryTopScrollbars(root){
-  root.querySelectorAll(".history-table-wrap").forEach(wrap=>{
+function initSyncedTopScrollbars(root){
+  root.querySelectorAll(".xscroll-wrap").forEach(wrap=>{
     const top=wrap.querySelector(".top-hscroll");
     const spacer=wrap.querySelector(".top-hscroll-inner");
-    const body=wrap.querySelector(".history-table-scroll");
+    const body=wrap.querySelector(".synced-scroll-body");
     if(!top||!spacer||!body) return;
+    if(wrap.dataset.scrollInit==="1") return;
+    wrap.dataset.scrollInit="1";
 
     let syncing=false;
     const syncWidth=()=>{
       spacer.style.width=body.scrollWidth+"px";
       top.scrollLeft=body.scrollLeft;
+      top.style.display = body.scrollWidth > body.clientWidth ? "block" : "none";
     };
     const topToBody=()=>{
       if(syncing) return; syncing=true;
@@ -864,6 +868,7 @@ function initHistoryTopScrollbars(root){
     top.addEventListener("scroll",topToBody,{passive:true});
     body.addEventListener("scroll",bodyToTop,{passive:true});
     requestAnimationFrame(syncWidth);
+    window.addEventListener("resize",syncWidth);
     if(window.ResizeObserver){
       const ro=new ResizeObserver(syncWidth);
       ro.observe(body);
@@ -886,7 +891,7 @@ function showHistory(key){
   let html="";
   plays.forEach((r,idx)=>{ html+=buildPlayCard(r, total-idx); });
   $("historyBody").innerHTML=html;
-  initHistoryTopScrollbars($("historyBody"));
+  initSyncedTopScrollbars($("historyBody"));
   $("historyModal").classList.add("open");
   document.body.style.overflow="hidden";
 }
@@ -929,7 +934,9 @@ function renderRaw(){
     wrap.innerHTML=`<div class="table-scroll"><div class="empty-mini"><div class="ic">🗂️</div>Chưa có dữ liệu nào được tải về.</div></div>`;
     return;
   }
-  let html=`<div class="table-scroll"><table class="raw-table"><thead><tr>`;
+  let html=`<div class="xscroll-wrap raw-table-wrap">
+    <div class="top-hscroll" aria-label="Thanh cuộn ngang phía trên"><div class="top-hscroll-inner"></div></div>
+    <div class="table-scroll synced-scroll-body"><table class="raw-table"><thead><tr>`;
   RAW_COLS.forEach(c=>html+=`<th>${esc(c.label)}</th>`);
   html+=`</tr></thead><tbody>`;
   if(!data.length){
@@ -949,11 +956,12 @@ function renderRaw(){
       html+=`</tr>`;
     });
   }
-  html+=`</tbody></table></div>`;
+  html+=`</tbody></table></div></div>`;
   if(q && data.length){
     html=`<p style="font-size:12.5px;color:var(--muted);margin:0 2px 10px;">Tìm thấy ${data.length} / ${rows.length} dòng.</p>`+html;
   }
   wrap.innerHTML=html;
+  initSyncedTopScrollbars(wrap);
 }
 
 /* ---------- tải CSV / JSON ---------- */
